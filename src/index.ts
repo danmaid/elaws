@@ -27,7 +27,7 @@ type Options =
 
 type R = Pick<GetArticlesOption, 'lawNum'> | Pick<GetArticlesOption, 'lawId'>
 
-class ELAWS {
+class ELaws {
   version = 1
   baseUrl = `https://elaws.e-gov.go.jp/api/${this.version}`
   parser = new DOMParser()
@@ -35,13 +35,9 @@ class ELAWS {
   /** 法令名一覧取得 */
   async getLawlists(法令種別: 法令種別.全法令): Promise<Lawlists> {
     const uri = this.baseUrl + `/lawlists/${法令種別}`
-    const res = await fetch(uri)
-    if (!res.ok) throw res
-    const xml = await res.text()
-    const doc = this.parseXML(xml)
-    const result = Result.fromElement(doc.querySelector('DataRoot Result'))
-    if (result.code !== 0) throw Error(result.message)
-    return Lawlists.fromElement(doc.querySelector('DataRoot ApplData'))
+    const res = await this.request(uri)
+    if (res.code !== 0) throw Error(res.message)
+    return Lawlists.fromElement(res.data)
   }
 
   /** 法令取得 */
@@ -49,13 +45,9 @@ class ELAWS {
   async getLawdata(法令ID: string): Promise<Lawdata>
   async getLawdata(id: string): Promise<Lawdata> {
     const uri = this.baseUrl + `/lawdata/${id}`
-    const res = await fetch(uri)
-    if (!res.ok) throw res
-    const xml = await res.text()
-    const doc = this.parseXML(xml)
-    const result = Result.fromElement(doc.querySelector('DataRoot Result'))
-    if (result.code !== 0) throw Error(result.message)
-    return Lawdata.fromElement(doc.querySelector('DataRoot ApplData'))
+    const res = await this.request(uri)
+    if (res.code !== 0) throw Error(res.message)
+    return Lawdata.fromElement(res.data)
   }
 
   /**
@@ -75,14 +67,10 @@ class ELAWS {
   async getArticles(params: R & Options): Promise<Articles> {
     const p = Object.entries(params).map(([k, v]) => `${k}=${v}`)
     const uri = this.baseUrl + `/articles;${p.join(';')}`
-    const res = await fetch(uri)
     // @todo: 300
-    if (!res.ok) throw res
-    const xml = await res.text()
-    const doc = this.parseXML(xml)
-    const result = Result.fromElement(doc.querySelector('DataRoot Result'))
-    if (result.code !== 0 && result.code !== 2) throw Error(result.message)
-    return Articles.fromElement(doc.querySelector('DataRoot ApplData'))
+    const res = await this.request(uri)
+    if (res.code !== 0 && res.code !== 2) throw Error(res.message)
+    return Articles.fromElement(res.data)
   }
 
   /** 更新法令一覧取得 */
@@ -95,13 +83,9 @@ class ELAWS {
     const MM = ('00' + (date.getMonth() + 1)).slice(-2)
     const dd = ('00' + date.getDate()).slice(-2)
     const uri = this.baseUrl + `/updatelawlists/${yyyy}${MM}${dd}`
-    const res = await fetch(uri)
-    if (!res.ok) throw res
-    const xml = await res.text()
-    const doc = this.parseXML(xml)
-    const result = Result.fromElement(doc.querySelector('DataRoot Result'))
-    if (result.code !== 0) throw Error(result.message)
-    return Updatelawlists.fromElement(doc.querySelector('DataRoot ApplData'))
+    const res = await this.request(uri)
+    if (res.code !== 0) throw Error(res.message)
+    return Updatelawlists.fromElement(res.data)
   }
 
   parseXML(xml: string): XMLDocument {
@@ -109,6 +93,17 @@ class ELAWS {
     const err = doc.querySelector('parsererror')
     if (err) throw err
     return doc
+  }
+
+  async request(url: string): Promise<Result & { data: Element }> {
+    const res = await fetch(url)
+    if (!res.ok) throw res
+    const xml = await res.text()
+    const doc = this.parseXML(xml)
+    return {
+      ...Result.fromElement(doc.querySelector('DataRoot Result')),
+      data: doc.querySelector('DataRoot ApplData'),
+    }
   }
 }
 
